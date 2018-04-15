@@ -5,11 +5,8 @@
 #include <sys/wait.h>
 
 
-
-
-
-const char* original_file = "/etc/passwd"
-const char* temp_file = "/tmp/passwd"
+const char* original_file = "/etc/passwd";
+const char* temp_file = "/tmp/passwd";
 
 
 void CopyFile(const char* src_file, const char* dst_file) {
@@ -27,7 +24,7 @@ void CopyFile(const char* src_file, const char* dst_file) {
 	} else {
 		int wait_status;
 		pid_t wait_pid = waitpid(child_pid, &wait_status, 0);
-		if (wait_status == -1) {
+		if (wait_pid == -1) {
 			perror("waitpid error");
 			exit(EXIT_FAILURE);
 		}
@@ -52,20 +49,6 @@ void UnloadModule() {
 
 
 }
-
-  char ch;
-  while(read(STDIN_FILENO, &ch, 1) > 0){
-    if(ch == 'q'){
-      break;
-    }
-  }
-
-  		int c;
-		c = getchar();
-		while(c != 'q'){
-			//putchar(c);
-			c = getchar();
-		}
 
 
 void WaitKeyQ() {
