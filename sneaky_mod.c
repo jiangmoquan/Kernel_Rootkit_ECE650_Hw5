@@ -49,15 +49,15 @@ MODULE_PARM_DESC(sneaky_process_id, "sneaky_process pid");
 //should expect ti find its arguments on the stack (not in registers).
 //This is used for all system calls.
 asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
-asmlinkage int (*original_open)(const char *pathname, int flags);
+asmlinkage int (*original_open)(const char *pathname, int flags, mode_t mode);
 //asmlinkage ssize_t (*original_read)(int fd, void *buf, size_t count);
 
 
 //Define our new sneaky version of the 'open' syscall
-asmlinkage int sneaky_sys_open(const char *pathname, int flags)
+asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
 {
 	printk(KERN_INFO "Very, very Sneaky!\n");
-	return original_open(pathname, flags);
+	return original_open(pathname, flags, mode);
 }
 
 
